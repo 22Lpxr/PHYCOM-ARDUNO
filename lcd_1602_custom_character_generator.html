@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LCD 1602 / 2004 Custom Character Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom pixel styling to simulate physical HD44780 dot matrix */
+    .pixel-cell {
+      touch-action: none;
+      transition: background-color 0.08s ease, transform 0.08s ease;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .pixel-cell:hover {
+      transform: scale(0.96);
+    }
+    
+    /* Authentic LCD screen bezel shadow */
+    .lcd-screen-bezel {
+      box-shadow: inset 0 3px 10px rgba(0,0,0,0.65), 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
+    /* Pre Code scrollbar */
+    pre code::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    pre code::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 4px;
+    }
+    pre code::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-emerald-500 selection:text-black">
+
+  <!-- Header Navigation -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i class="fa-solid fa-microchip text-slate-950 text-xl font-bold"></i>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            LCD 1602 Custom Character Generator
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">HD44780</span>
+          </h1>
+          <p class="text-xs text-slate-400">Arduino & LiquidCrystal_I2C 5×8 Pixel Matrix Tool</p>
+        </div>
+      </div>
+
+      <!-- Quick Backlight Style Selector -->
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <span class="hidden md:inline-flex items-center text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+          5×8 Matrix Engine
+        </span>
+        <button id="themeToggleBtn" title="Switch LCD Theme" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors text-sm border border-slate-700">
+          <i class="fa-solid fa-palette mr-1 text-emerald-400"></i>
+          <span class="hidden sm:inline">Backlight Color</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Top Info Bar & Presets Selector -->
+    <div class="bg-gradient-to-r from-slate-900 to-slate-800/80 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </div>
+        <div class="text-sm">
+          <span class="font-medium text-slate-200">Draw 5×8 Custom Characters for Arduino LCDs</span>
+          <p class="text-xs text-slate-400">Click or drag across pixels to build custom icons, then paste the C++ code directly into your sketch.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <label class="text-xs text-slate-400 font-medium">Preset Glyphs:</label>
+        <select id="presetSelect" class="bg-slate-950 border border-slate-700 text-emerald-400 text-xs rounded-lg px-3 py-1.5 font-mono focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer">
+          <option value="omega">Ω Ohm / Omega</option>
+          <option value="heart">❤️ Heart</option>
+          <option value="smile">😀 Smiley Face</option>
+          <option value="battery">🔋 Battery Full</option>
+          <option value="wifi">📶 WiFi Signal</option>
+          <option value="bell">🔔 Bell / Alarm</option>
+          <option value="note">🎵 Music Note</option>
+          <option value="degree">° Degree Symbol</option>
+          <option value="thermometer">🌡️ Thermometer</option>
+          <option value="skull">💀 Skull</option>
+          <option value="pacman">👾 Pac-Man</option>
+          <option value="ghost">👻 Ghost</option>
+          <option value="lightning">⚡ Lightning</option>
+          <option value="arrow_up">⬆️ Arrow Up</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 2-Column Responsive Dashboard -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- COLUMN 1: 5x8 Interactive Matrix Grid & Controls -->
+      <section class="lg:col-span-5 bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl space-y-5">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <span class="h-3 w-3 rounded-full bg-emerald-500 inline-block"></span>
+            <h2 class="font-semibold text-slate-100 text-base">5×8 Pixel Matrix Canvas</h2>
+          </div>
+          <span class="text-xs text-slate-400 font-mono">Row 0..7 / Col 0..4</span>
+        </div>
+
+        <!-- Matrix Canvas with Authentic LCD Bezel Style -->
+        <div class="flex flex-col items-center">
+          <div id="lcdBezel" class="lcd-screen-bezel p-5 rounded-2xl border-4 border-slate-700/80 transition-colors duration-200" style="background-color: #879b25;">
+            <!-- Column Indicator Headers -->
+            <div class="grid grid-cols-5 gap-1.5 mb-1.5 text-center text-[10px] font-mono font-bold opacity-60 text-slate-900" id="colHeaderContainer">
+              <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span>
+            </div>
+
+            <!-- The 5x8 Grid of Pixels -->
+            <div id="pixelGrid" class="grid grid-cols-5 gap-1.5 bg-black/10 p-2 rounded-xl border border-black/15 shadow-inner select-none cursor-crosshair">
+              <!-- Dynamically populated by JS -->
+            </div>
+            
+            <div class="mt-2 text-center text-[11px] font-mono font-semibold tracking-wider opacity-70 uppercase" id="screenLabel">
+              Character Pixel Matrix
+            </div>
+          </div>
+        </div>
+
+        <!-- Grid Manipulation Toolbar -->
+        <div class="space-y-3 pt-2">
+          <!-- Clear / Invert / Mirror -->
+          <div class="grid grid-cols-3 gap-2">
+            <button id="clearBtn" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 rounded-xl border border-slate-700 hover:border-rose-700/50 transition-all text-xs font-medium">
+              <i class="fa-solid fa-trash-can text-xs"></i> Clear
+            </button>
+            <button id="invertBtn" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-all text-xs font-medium">
+              <i class="fa-solid fa-circle-half-stroke text-xs"></i> Invert
+            </button>
+            <button id="flipHBtn" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-all text-xs font-medium">
+              <i class="fa-solid fa-arrows-left-right text-xs"></i> Mirror
+            </button>
+          </div>
+
+          <!-- Directional Nudge / Shift Pad -->
+          <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between">
+            <span class="text-xs text-slate-400 font-medium">Nudge Pixels:</span>
+            <div class="flex items-center gap-1.5">
+              <button id="shiftLeftBtn" title="Shift Left" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 flex items-center justify-center text-xs transition-colors">
+                <i class="fa-solid fa-arrow-left"></i>
+              </button>
+              <button id="shiftUpBtn" title="Shift Up" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 flex items-center justify-center text-xs transition-colors">
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+              <button id="shiftDownBtn" title="Shift Down" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 flex items-center justify-center text-xs transition-colors">
+                <i class="fa-solid fa-arrow-down"></i>
+              </button>
+              <button id="shiftRightBtn" title="Shift Right" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 flex items-center justify-center text-xs transition-colors">
+                <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Theme Selector -->
+        <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <span>Backlight Color:</span>
+          <div class="flex items-center gap-1.5">
+            <button class="theme-color-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-[#879b25] text-slate-950 border-[#6a7c1b]" data-theme="classic">
+              Yellow/Green
+            </button>
+            <button class="theme-color-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-blue-600 text-white border-blue-500" data-theme="blue">
+              Blue
+            </button>
+            <button class="theme-color-btn px-2.5 py-1 rounded-md text-[11px] font-medium border bg-slate-900 text-emerald-400 border-emerald-500/40" data-theme="oled">
+              OLED Green
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- COLUMN 2: Preview & Arduino C++ Code Output -->
+      <section class="lg:col-span-7 space-y-6">
+
+        <!-- Top Box: Real-Time Virtual LCD 1602 Display Simulator -->
+        <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-tv text-emerald-400 text-sm"></i>
+              <h2 class="font-semibold text-slate-100 text-base">Virtual 16×2 Display Simulator</h2>
+            </div>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono border border-slate-700">16 Chars × 2 Rows</span>
+          </div>
+
+          <!-- LCD Frame Preview -->
+          <div id="simulatedScreenBezel" class="p-4 sm:p-5 rounded-xl border-4 border-slate-700/80 transition-colors shadow-2xl overflow-x-auto" style="background-color: #879b25;">
+            <div class="font-mono text-xs sm:text-sm tracking-widest text-[#1a2703] space-y-1 font-bold select-none min-w-[280px]" id="simLcdContent">
+              <!-- Line 0 -->
+              <div class="flex items-center bg-black/10 px-2.5 py-1 rounded border border-black/15 shadow-inner">
+                <span class="text-xs mr-2 opacity-50 font-normal">0:</span>
+                <span>Custom: </span>
+                <span class="inline-block mx-1 align-middle" id="miniCharContainerRow0">
+                  <!-- Rendered character in small pixel block -->
+                </span>
+                <span class="opacity-75"> Val=100</span>
+              </div>
+              <!-- Line 1 -->
+              <div class="flex items-center bg-black/10 px-2.5 py-1 rounded border border-black/15 shadow-inner mt-1">
+                <span class="text-xs mr-2 opacity-50 font-normal">1:</span>
+                <span>Status: OK </span>
+                <span class="inline-block mx-1 align-middle" id="miniCharContainerRow1">
+                  <!-- Rendered character in small pixel block -->
+                </span>
+                <span class="opacity-75"> 100%</span>
+              </div>
+            </div>
+          </div>
+          
+          <p class="text-xs text-slate-400">
+            Simulates how your custom matrix appears when stored in memory slot <code class="text-emerald-400 font-mono" id="charIdLabel">1</code> on a standard HD44780 LCD controller.
+          </p>
+        </div>
+
+        <!-- Code Generator Settings & Output -->
+        <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-code text-emerald-400"></i>
+              <h2 class="font-semibold text-slate-100 text-base">Generated C++ Arduino Code</h2>
+            </div>
+            
+            <!-- Code Format Toggle: Binary vs Hex -->
+            <div class="flex items-center space-x-2">
+              <span class="text-xs text-slate-400">Byte Format:</span>
+              <div class="inline-flex p-0.5 rounded-lg bg-slate-950 border border-slate-800">
+                <button id="fmtBinaryBtn" class="px-2.5 py-1 text-xs font-mono rounded-md font-medium bg-emerald-500 text-slate-950 transition-colors">
+                  B01110
+                </button>
+                <button id="fmtHexBtn" class="px-2.5 py-1 text-xs font-mono rounded-md font-medium text-slate-400 hover:text-white transition-colors">
+                  0x0E
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Variable Customization Controls -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950/70 p-3 rounded-xl border border-slate-800/80">
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1">Variable Name</label>
+              <input type="text" id="varNameInput" value="omega" class="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono focus:border-emerald-500 outline-none">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1">Slot Index (0 - 7)</label>
+              <input type="number" id="slotIndexInput" value="1" min="0" max="7" class="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:border-emerald-500 outline-none">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1">I2C Address</label>
+              <select id="i2cAddressInput" class="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:border-emerald-500 outline-none">
+                <option value="0x27">0x27 (Default)</option>
+                <option value="0x3F">0x3F (Alternate)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1">Display Size</label>
+              <select id="lcdDimensionInput" class="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:border-emerald-500 outline-none">
+                <option value="16, 2">16 x 2</option>
+                <option value="20, 4">20 x 4</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Code View Switcher & Copy Button -->
+          <div class="flex items-center justify-between pt-1">
+            <div class="flex items-center space-x-2">
+              <button id="viewFullSketchBtn" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-emerald-400 font-medium border border-slate-700 transition">
+                Complete Arduino Sketch
+              </button>
+              <button id="viewArrayOnlyBtn" class="text-xs px-3 py-1.5 rounded-lg bg-transparent text-slate-400 hover:text-slate-200 font-medium border border-transparent transition">
+                Byte Array Only
+              </button>
+            </div>
+
+            <button id="copyCodeBtn" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded-lg text-xs transition shadow-lg shadow-emerald-500/20 active:scale-95">
+              <i class="fa-solid fa-copy"></i>
+              <span id="copyBtnText">Copy Code</span>
+            </button>
+          </div>
+
+          <!-- Preformatted Code Block -->
+          <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 shadow-inner">
+            <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-slate-400 text-xs font-mono">
+              <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+                <span class="ml-2 text-slate-300">lcd_custom_char.ino</span>
+              </div>
+              <span class="text-[11px] text-slate-500">LiquidCrystal_I2C</span>
+            </div>
+            <pre class="p-4 text-xs font-mono overflow-x-auto text-emerald-300 leading-relaxed max-h-[380px]"><code id="codeOutput"></code></pre>
+          </div>
+        </div>
+
+      </section>
+    </div>
+
+    <!-- Instructions & CGRAM Technical Notes -->
+    <div class="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-400">
+      <div class="space-y-1.5">
+        <h3 class="font-bold text-slate-200 flex items-center gap-1.5">
+          <i class="fa-solid fa-microchip text-emerald-400"></i> CGRAM Storage Limits
+        </h3>
+        <p>HD44780 LCD controllers support a maximum of <strong>8 custom characters</strong> simultaneously stored in CGRAM slots <code class="text-emerald-400 font-mono">0</code> to <code class="text-emerald-400 font-mono">7</code>.</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <h3 class="font-bold text-slate-200 flex items-center gap-1.5">
+          <i class="fa-solid fa-hand-pointer text-emerald-400"></i> Touch & Drag Painting
+        </h3>
+        <p>Click and hold or drag across grid cells to continuously toggle pixels ON or OFF on both desktop mouse and mobile touchscreens.</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <h3 class="font-bold text-slate-200 flex items-center gap-1.5">
+          <i class="fa-solid fa-book text-emerald-400"></i> Library Compatibility
+        </h3>
+        <p>Generated code works out of the box with the standard <strong>LiquidCrystal_I2C</strong> library in the Arduino IDE or online simulators like Wokwi and Tinkercad.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-emerald-500 text-slate-950 font-medium px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 transform translate-y-24 opacity-0 transition-all duration-300 z-50 pointer-events-none">
+    <i class="fa-solid fa-circle-check text-slate-950"></i>
+    <span id="toastMsg">Code copied to clipboard!</span>
+  </div>
+
+  <script>
+    // 5x8 Matrix Data Representation (8 rows, 5 columns)
+    const ROWS = 8;
+    const COLS = 5;
+
+    // Built-in Presets Library
+    const PRESETS = {
+      omega: [
+        [0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 1, 0],
+        [1, 1, 0, 1, 1],
+        [0, 0, 0, 0, 0]
+      ],
+      heart: [
+        [0, 0, 0, 0, 0],
+        [0, 1, 0, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      smile: [
+        [0, 0, 0, 0, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      battery: [
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1]
+      ],
+      wifi: [
+        [0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 1, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      bell: [
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0],
+        [0, 1, 1, 1, 0],
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      note: [
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 1],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 0],
+        [0, 1, 1, 0, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      degree: [
+        [0, 0, 1, 1, 0],
+        [0, 1, 0, 0, 1],
+        [0, 1, 0, 0, 1],
+        [0, 0, 1, 1, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      thermometer: [
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 1, 1, 0],
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0]
+      ],
+      skull: [
+        [0, 1, 1, 1, 0],
+        [1, 0, 1, 0, 1],
+        [1, 1, 0, 1, 1],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      pacman: [
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 0, 0],
+        [1, 1, 0, 0, 0],
+        [1, 1, 1, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      ghost: [
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 0, 1, 0, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 0, 1, 0, 1],
+        [0, 0, 0, 0, 0]
+      ],
+      lightning: [
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 1, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0]
+      ],
+      arrow_up: [
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0]
+      ]
+    };
+
+    // Application State
+    let matrix = JSON.parse(JSON.stringify(PRESETS.omega));
+    let isDrawing = false;
+    let drawMode = 1;
+    let currentTheme = 'classic';
+    let byteFormat = 'binary';
+    let viewMode = 'full';
+
+    // Theme Definitions
+    const THEMES = {
+      classic: {
+        bg: '#879b25',
+        activePixel: '#1a2703',
+        inactivePixel: '#77881e',
+        text: '#1a2703'
+      },
+      blue: {
+        bg: '#0c4fc5',
+        activePixel: '#ffffff',
+        inactivePixel: '#1a5ed8',
+        text: '#ffffff'
+      },
+      oled: {
+        bg: '#121214',
+        activePixel: '#00ff66',
+        inactivePixel: '#1f2d24',
+        text: '#00ff66'
+      }
+    };
+
+    const pixelGrid = document.getElementById('pixelGrid');
+    const lcdBezel = document.getElementById('lcdBezel');
+    const simulatedScreenBezel = document.getElementById('simulatedScreenBezel');
+
+    function createMatrixElements() {
+      pixelGrid.innerHTML = '';
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.row = r;
+          btn.dataset.col = c;
+          btn.className = 'pixel-cell w-9 h-9 sm:w-11 sm:h-11 rounded-sm shadow-inner transition-colors duration-75 relative focus:outline-none';
+          
+          btn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isDrawing = true;
+            drawMode = matrix[r][c] ? 0 : 1;
+            setPixel(r, c, drawMode);
+          });
+
+          btn.addEventListener('mouseenter', () => {
+            if (isDrawing) {
+              setPixel(r, c, drawMode);
+            }
+          });
+
+          btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDrawing = true;
+            drawMode = matrix[r][c] ? 0 : 1;
+            setPixel(r, c, drawMode);
+          }, { passive: false });
+
+          pixelGrid.appendChild(btn);
+        }
+      }
+    }
+
+    window.addEventListener('mouseup', () => { isDrawing = false; });
+    window.addEventListener('touchend', () => { isDrawing = false; });
+    window.addEventListener('touchcancel', () => { isDrawing = false; });
+
+    pixelGrid.addEventListener('touchmove', (e) => {
+      if (!isDrawing) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (target && target.classList.contains('pixel-cell')) {
+        const r = parseInt(target.dataset.row);
+        const c = parseInt(target.dataset.col);
+        if (!isNaN(r) && !isNaN(c)) {
+          setPixel(r, c, drawMode);
+        }
+      }
+    }, { passive: false });
+
+    function setPixel(r, c, val) {
+      if (matrix[r][c] !== val) {
+        matrix[r][c] = val;
+        renderPixels();
+        updateCodeAndSim();
+      }
+    }
+
+    function renderPixels() {
+      const theme = THEMES[currentTheme];
+      const cells = pixelGrid.children;
+      let index = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = cells[index];
+          const isOn = matrix[r][c] === 1;
+          cell.style.backgroundColor = isOn ? theme.activePixel : theme.inactivePixel;
+          cell.style.boxShadow = isOn 
+            ? '0 0 6px rgba(0,0,0,0.5)' 
+            : 'inset 0 1px 2px rgba(0,0,0,0.15)';
+          index++;
+        }
+      }
+      renderMiniSimulations();
+    }
+
+    function renderMiniSimulations() {
+      const theme = THEMES[currentTheme];
+      const createMini = () => {
+        let svg = `<svg width="15" height="24" viewBox="0 0 5 8" class="inline-block align-middle" style="shape-rendering: crispEdges;">`;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const color = matrix[r][c] === 1 ? theme.activePixel : 'transparent';
+            svg += `<rect x="${c}" y="${r}" width="0.9" height="0.9" fill="${color}" />`;
+          }
+        }
+        svg += `</svg>`;
+        return svg;
+      };
+
+      document.getElementById('miniCharContainerRow0').innerHTML = createMini();
+      document.getElementById('miniCharContainerRow1').innerHTML = createMini();
+    }
+
+    function applyTheme(themeKey) {
+      currentTheme = themeKey;
+      const theme = THEMES[themeKey];
+      lcdBezel.style.backgroundColor = theme.bg;
+      simulatedScreenBezel.style.backgroundColor = theme.bg;
+      
+      const simText = document.getElementById('simLcdContent');
+      simText.style.color = theme.text;
+      
+      const colHeaders = document.getElementById('colHeaderContainer');
+      colHeaders.style.color = theme.text;
+
+      const screenLabel = document.getElementById('screenLabel');
+      screenLabel.style.color = theme.text;
+
+      renderPixels();
+    }
+
+    function clearMatrix() {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          matrix[r][c] = 0;
+        }
+      }
+      renderPixels();
+      updateCodeAndSim();
+    }
+
+    function invertMatrix() {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          matrix[r][c] = matrix[r][c] === 1 ? 0 : 1;
+        }
+      }
+      renderPixels();
+      updateCodeAndSim();
+    }
+
+    function flipHorizontal() {
+      for (let r = 0; r < ROWS; r++) {
+        matrix[r].reverse();
+      }
+      renderPixels();
+      updateCodeAndSim();
+    }
+
+    function shift(direction) {
+      if (direction === 'up') {
+        matrix.shift();
+        matrix.push([0, 0, 0, 0, 0]);
+      } else if (direction === 'down') {
+        matrix.pop();
+        matrix.unshift([0, 0, 0, 0, 0]);
+      } else if (direction === 'left') {
+        for (let r = 0; r < ROWS; r++) {
+          matrix[r].shift();
+          matrix[r].push(0);
+        }
+      } else if (direction === 'right') {
+        for (let r = 0; r < ROWS; r++) {
+          matrix[r].pop();
+          matrix[r].unshift(0);
+        }
+      }
+      renderPixels();
+      updateCodeAndSim();
+    }
+
+    function updateCodeAndSim() {
+      const varName = (document.getElementById('varNameInput').value || 'customChar').replace(/[^a-zA-Z0-9_]/g, '');
+      const slotIndex = Math.max(0, Math.min(7, parseInt(document.getElementById('slotIndexInput').value) || 0));
+      const i2cAddr = document.getElementById('i2cAddressInput').value;
+      const lcdDim = document.getElementById('lcdDimensionInput').value;
+
+      document.getElementById('charIdLabel').textContent = slotIndex;
+
+      const byteLines = matrix.map((row) => {
+        if (byteFormat === 'binary') {
+          return '  B' + row.join('');
+        } else {
+          const val = parseInt(row.join(''), 2);
+          const hex = val.toString(16).toUpperCase().padStart(2, '0');
+          return '  0x' + hex;
+        }
+      });
+
+      let codeText = '';
+      if (viewMode === 'array') {
+        codeText = `// Custom Character: ${varName} (5x8 matrix)\nbyte ${varName}[8] = {\n${byteLines.join(',\n')}\n};`;
+      } else {
+        codeText = `#include <LiquidCrystal_I2C.h>
+
+// Initialize LCD with I2C Address: ${i2cAddr}, Size: ${lcdDim}
+LiquidCrystal_I2C lcd(${i2cAddr}, ${lcdDim});
+
+// 5x8 custom character byte pattern
+byte ${varName}[8] = {
+${byteLines.join(',\n')}
+};
+
+void setup() {
+  lcd.init();
+  lcd.backlight();
+
+  // Save character into CGRAM slot ${slotIndex} (0 to 7)
+  lcd.createChar(${slotIndex}, ${varName});
+
+  // Display custom character
+  lcd.setCursor(0, 0);
+  lcd.print("Custom: ");
+  lcd.write(byte(${slotIndex}));
+
+  lcd.setCursor(0, 1);
+  lcd.print("Val: 100 ");
+  lcd.write(byte(${slotIndex}));
+}
+
+void loop() {
+  // Main loop logic here
+}`;
+      }
+
+      document.getElementById('codeOutput').textContent = codeText;
+    }
+
+    document.getElementById('clearBtn').addEventListener('click', clearMatrix);
+    document.getElementById('invertBtn').addEventListener('click', invertMatrix);
+    document.getElementById('flipHBtn').addEventListener('click', flipHorizontal);
+
+    document.getElementById('shiftUpBtn').addEventListener('click', () => shift('up'));
+    document.getElementById('shiftDownBtn').addEventListener('click', () => shift('down'));
+    document.getElementById('shiftLeftBtn').addEventListener('click', () => shift('left'));
+    document.getElementById('shiftRightBtn').addEventListener('click', () => shift('right'));
+
+    document.getElementById('presetSelect').addEventListener('change', (e) => {
+      const chosen = PRESETS[e.target.value];
+      if (chosen) {
+        matrix = JSON.parse(JSON.stringify(chosen));
+        document.getElementById('varNameInput').value = e.target.value;
+        renderPixels();
+        updateCodeAndSim();
+      }
+    });
+
+    document.querySelectorAll('.theme-color-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        applyTheme(btn.dataset.theme);
+      });
+    });
+
+    let themeCycleIndex = 0;
+    const themesList = ['classic', 'blue', 'oled'];
+    document.getElementById('themeToggleBtn').addEventListener('click', () => {
+      themeCycleIndex = (themeCycleIndex + 1) % themesList.length;
+      applyTheme(themesList[themeCycleIndex]);
+    });
+
+    const fmtBinaryBtn = document.getElementById('fmtBinaryBtn');
+    const fmtHexBtn = document.getElementById('fmtHexBtn');
+
+    fmtBinaryBtn.addEventListener('click', () => {
+      byteFormat = 'binary';
+      fmtBinaryBtn.className = 'px-2.5 py-1 text-xs font-mono rounded-md font-medium bg-emerald-500 text-slate-950 transition-colors';
+      fmtHexBtn.className = 'px-2.5 py-1 text-xs font-mono rounded-md font-medium text-slate-400 hover:text-white transition-colors';
+      updateCodeAndSim();
+    });
+
+    fmtHexBtn.addEventListener('click', () => {
+      byteFormat = 'hex';
+      fmtHexBtn.className = 'px-2.5 py-1 text-xs font-mono rounded-md font-medium bg-emerald-500 text-slate-950 transition-colors';
+      fmtBinaryBtn.className = 'px-2.5 py-1 text-xs font-mono rounded-md font-medium text-slate-400 hover:text-white transition-colors';
+      updateCodeAndSim();
+    });
+
+    const viewFullSketchBtn = document.getElementById('viewFullSketchBtn');
+    const viewArrayOnlyBtn = document.getElementById('viewArrayOnlyBtn');
+
+    viewFullSketchBtn.addEventListener('click', () => {
+      viewMode = 'full';
+      viewFullSketchBtn.className = 'text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-emerald-400 font-medium border border-slate-700 transition';
+      viewArrayOnlyBtn.className = 'text-xs px-3 py-1.5 rounded-lg bg-transparent text-slate-400 hover:text-slate-200 font-medium border border-transparent transition';
+      updateCodeAndSim();
+    });
+
+    viewArrayOnlyBtn.addEventListener('click', () => {
+      viewMode = 'array';
+      viewArrayOnlyBtn.className = 'text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-emerald-400 font-medium border border-slate-700 transition';
+      viewFullSketchBtn.className = 'text-xs px-3 py-1.5 rounded-lg bg-transparent text-slate-400 hover:text-slate-200 font-medium border border-transparent transition';
+      updateCodeAndSim();
+    });
+
+    ['varNameInput', 'slotIndexInput', 'i2cAddressInput', 'lcdDimensionInput'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateCodeAndSim);
+    });
+
+    const toast = document.getElementById('toast');
+    let toastTimeout;
+
+    function showToast(message) {
+      document.getElementById('toastMsg').textContent = message;
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-24', 'opacity-0');
+      }, 2500);
+    }
+
+    document.getElementById('copyCodeBtn').addEventListener('click', () => {
+      const code = document.getElementById('codeOutput').textContent;
+      const tempArea = document.createElement('textarea');
+      tempArea.value = code;
+      tempArea.style.position = 'fixed';
+      tempArea.style.opacity = '0';
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      
+      try {
+        document.execCommand('copy');
+        showToast('Code copied to clipboard!');
+      } catch (err) {
+        showToast('Press Ctrl+C to copy code');
+      } finally {
+        document.body.removeChild(tempArea);
+      }
+    });
+
+    window.addEventListener('load', () => {
+      createMatrixElements();
+      applyTheme('classic');
+      updateCodeAndSim();
+    });
+  </script>
+</body>
+</html>
